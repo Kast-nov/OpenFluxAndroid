@@ -37,6 +37,72 @@ jobs:
           go install golang.org/x/mobile/cmd/gomobile@latest
           go install golang.org/x/mobile/cmd/gobind@latest
           gomobile init
+      - name: Patch Mail.ru Android login flow
+        shell: bash
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+
+          p = Path("OpenFlux/transport/mailru/mailru.go")
+          s = p.read_text()
+
+          old_struct = '''\t// cookiesApplied wakes a scheduled reconnect's wait early. Unbuffered on
+          \t// purpose: a send only succeeds while such a wait is in progress.
+          \tcookiesApplied chan struct{}
+          }'''
+
+          new_struct = '''\t// cookiesApplied wakes a scheduled reconnect's wait early. Unbuffered on
+          \t// purpose: a send only succeeds while such a wait is in progress.
+          \tcookiesApplied chan struct{}
+
+          \tnotifyMu sync.Mutex
+          \tnotify   func(error, string, string, string, string)
+          }'''
+
+          if old_struct not in s:
+              raise SystemExit("MailruDocsTransport struct marker not found")
+          s = s.replace(old_struct, new_struct, 1)
+
+          marker = '''func (t *MailruDocsTransport) Start() error {'''
+
+          methods = '''func (t *MailruDocsTransport) SetErrorNotifier(fn func(error, string, string, string, string)) {
+          \tt.notifyMu.Lock()
+          \tt.notify = fn
+          \tt.notifyMu.Unlock()
+          }
+
+          func (t *MailruDocsTransport) notifyLoginRequired(err error) {
+          \tt.notifyMu.Lock()
+          \tfn := t.notify
+          \tt.notifyMu.Unlock()
+          \tif fn != nil {
+          \t\tfn(err, "mailru", "https://cloud.mail.ru/", "", "login")
+          \t}
+          }
+
+          '''
+
+          if marker not in s:
+              raise SystemExit("Start marker not found")
+          s = s.replace(marker, methods + marker, 1)
+
+          old_error = '''\t\t\tif errors.Is(err, ErrAnonymousForbidden) {
+          \t\t\t\tif utils.Throttled("m-docs.anonymous", 10*time.Minute) {'''
+
+          new_error = '''\t\t\tif errors.Is(err, ErrAnonymousForbidden) {
+          \t\t\t\tt.notifyLoginRequired(err)
+          \t\t\t\tif utils.Throttled("m-docs.anonymous", 10*time.Minute) {'''
+
+          if old_error not in s:
+              raise SystemExit("anonymous error block not found")
+          s = s.replace(old_error, new_error, 1)
+
+          p.write_text(s)
+
+          print("Mail.ru Android login patch applied")
+          PY
+
+          grep -n -A8 -B3 'notifyLoginRequired' OpenFlux/transport/mailru/mailru.go
 
       - name: Build core
         run: |
