@@ -44,7 +44,7 @@ class AndroidNodeWizard : NodeWizardService {
         val reply = call("nodeConnect", "${target.host}:${target.port} (${target.user})") {
             Mobile.nodeConnect(
                 target.host, target.port.toLong(), target.user,
-                target.password, target.privateKey, target.passphrase, target.hostKey,
+                target.password, target.privateKey, target.passphrase, target.hostKey, "android",
             )
         }
         return json.decodeFromJsonElement(ServerProbe.serializer(), reply.getValue("probe"))
@@ -57,7 +57,7 @@ class AndroidNodeWizard : NodeWizardService {
 
     override suspend fun plan(channel: String, transports: List<NodeTransport>, autoUpdate: Boolean): NodePlan {
         val reply = call("nodePlan", "channel=$channel ${transports.names()} autoUpdate=$autoUpdate") {
-            Mobile.nodePlan(channel, 0, transports.json(), autoUpdate)
+            Mobile.nodePlan(channel, 0, transports.json(), true, autoUpdate, "l4")
         }
         return json.decodeFromJsonElement(NodePlan.serializer(), reply.getValue("plan"))
     }
@@ -70,7 +70,7 @@ class AndroidNodeWizard : NodeWizardService {
         sudoPassword: String,
     ) {
         call("nodeApply", "channel=${channel.id} ${transports.names()} port=$port autoUpdate=$autoUpdate") {
-            Mobile.nodeApply(channel.id, transports.json(), channel.key, port.toLong(), autoUpdate, sudoPassword)
+            Mobile.nodeApply(channel.id, transports.json(), channel.key, port.toLong(), autoUpdate, sudoPassword, "", "l4")
         }
     }
 
