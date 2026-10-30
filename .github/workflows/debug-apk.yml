@@ -104,6 +104,28 @@ jobs:
 
           grep -n -A8 -B3 'notifyLoginRequired' OpenFlux/transport/mailru/mailru.go
 
+      - name: Patch shared UI for Mail.ru login
+        shell: bash
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+
+          p = Path("shared/src/commonMain/kotlin/io/openflux/desktop/ui/shell/CaptchaDialog.kt")
+          s = p.read_text(encoding="utf-8")
+
+          old = 'enabled = !current.busy'
+          new = 'enabled = !current.busy || current.reason == "login"'
+
+          count = s.count(old)
+          if count != 2:
+              raise SystemExit(f"Expected 2 button matches, found {count}")
+
+          p.write_text(s.replace(old, new), encoding="utf-8")
+          print("Shared Mail.ru login UI patch applied")
+          PY
+
+          grep -n 'current.reason == "login"' shared/src/commonMain/kotlin/io/openflux/desktop/ui/shell/CaptchaDialog.kt
+
       - name: Build core
         run: |
           chmod +x scripts/*.sh
