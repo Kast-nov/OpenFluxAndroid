@@ -567,6 +567,8 @@ class AndroidConnectionService(
         _captchaPage.value = page
         _captcha.update { it?.copy(error = "", progress = "") }
         if (own) return // the page submits itself; no cookie/settle detection applies.
+        // Login pages must stay open until the user signs in and presses Done.
+        if (_captcha.value?.reason == "login") return
         // A real browser is often let through without any check (it targets the
         // core's bot-like client): a regular page that stays put counts as passed.
         scope.launch {
